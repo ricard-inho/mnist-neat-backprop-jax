@@ -1,5 +1,5 @@
-# Pong NEAT Backprop Jax
-Implementation of Atari pong with NEAT algorithm and backpropagation in JAX
+# MNIST NEAT Backprop Jax
+Implementation of MNIST classification with NEAT algorithm and backpropagation in JAX
 
 ### Install
 ```
