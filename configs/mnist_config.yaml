@@ -9,7 +9,7 @@ jax:
   PRNGKey: 30
 
 training:
-  num_epochs: 10
+  num_epochs: 100
   generations: 8
   visualize_epochs: False
 

@@ -29,7 +29,7 @@ from datasets.utils import numpy_collate
 from datasets.iris_dataset import IrisDataset
 
 
-from training.functions import train_model
+from training.functions import train_model, eval_model
 import numpy as np
 
 from utils.drawing import draw_graph
@@ -71,24 +71,19 @@ def main(cfg):
         # Logs
         writer = tf.summary.create_file_writer(cfg.logs.log_dir)
 
-
+        #Dataset 
         iris_dataset = datasets.load_iris()
-
         X = iris_dataset.data
         y = iris_dataset.target
-
         X = (X - X.mean()) / np.std(X)
-
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-
-        
         train_dataset = IrisDataset(X_train, y_train)
         test_dataset = IrisDataset(X_test, y_test)
 
 
         batch_size = 32
 
-        # Create DataLoader
+        #DataLoader
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=numpy_collate)
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=numpy_collate)
                             
@@ -100,6 +95,8 @@ def main(cfg):
                                 writer=writer,
                                 generation=generation
                             )
+        
+        eval_model(trained_model_state, test_loader, epoch=cfg.training.num_epochs, writer=writer, generation=generation)
 
 
         checkpoints.save_checkpoint(ckpt_dir='/Users/ricardmarsalcastan/Documents/Projects/neat-backprop-jax/checkpoints',  # Folder to save checkpoint in
