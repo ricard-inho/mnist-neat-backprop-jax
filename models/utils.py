@@ -3,7 +3,7 @@ from flax import linen as nn
 import jax
 
 
-def create_layers(rng, num_hidden, prev_activations):
+def create_layers(rng, num_hidden, num_output, prev_activations):
     layers = []
     activations = []
     for hidden in num_hidden:
@@ -22,6 +22,8 @@ def create_layers(rng, num_hidden, prev_activations):
                     activations.append(nn.leaky_relu)
             else: 
                 activations = prev_activations
+
+    layers.append(nn.Dense(features=num_output))
 
     return layers, activations
 
