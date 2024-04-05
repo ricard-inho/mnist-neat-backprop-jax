@@ -1,0 +1,18 @@
+neat:
+  add_node: 0.99
+  add_edge: 0.7
+
+logs:
+  log_dir: './logs'
+
+jax:
+  PRNGKey: 30
+
+training:
+  num_epochs: 200
+  generations: 8
+  visualize_epochs: False
+
+dataset:
+  dataset_type: "donuts"
+  
