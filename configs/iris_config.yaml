@@ -9,17 +9,17 @@ jax:
   PRNGKey: 30
 
 training:
-  num_epochs: 100
-  generations: 8
+  num_epochs: 1
+  generations: 10
   visualize_epochs: False
   batch_size: 32
   lr: 0.1
 
 network:
-  num_output: 10
+  num_output: 3
   num_layers: [1]
-  num_inputs: 784 #MNIST is 28 * 28 images
+  num_inputs: 4 
 
 dataset:
-  dataset_type: "mnist"
+  dataset_type: "iris"
   

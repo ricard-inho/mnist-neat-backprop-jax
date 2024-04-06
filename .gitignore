@@ -165,3 +165,7 @@ outputs/*
 logs/*
 
 mnist_data/*
+
+test/*
+train/*
+files/*

@@ -5,13 +5,13 @@ import jax
 import jax.numpy as jnp
 
 
-def copy_layers_over(rng, num_layers, trained_params, prev_activations, num_output=3):
+def copy_layers_over(rng, num_layers, trained_params, prev_activations, cfg):
 
-    layers, activations = create_layers(rng, num_layers,num_output, prev_activations)
+    layers, activations = create_layers(rng, num_layers, cfg.network.num_output, prev_activations)
     model = GenomeClassifier(layers=layers, activations=activations)
 
     rng, inp_rng, init_rng = jax.random.split(rng, 3)
-    inp = jax.random.normal(inp_rng, (4,))
+    inp = jax.random.normal(inp_rng, (cfg.network.num_inputs,))
     params = model.init(init_rng, inp)
 
     for layer, value in trained_params.items():
@@ -40,12 +40,12 @@ def copy_layers_over(rng, num_layers, trained_params, prev_activations, num_outp
     return model, params
 
 
-def add_new_layer(rng, num_layers, trained_params):
+def add_new_layer(rng, num_layers, trained_params, cfg):
     num_layers.append(1)
-    return copy_layers_over(rng, num_layers, trained_params, None)
+    return copy_layers_over(rng, num_layers, trained_params, None, cfg)
 
 
-def add_new_node(rng, num_layers, trained_params, prev_activations):
+def add_new_node(rng, num_layers, trained_params, prev_activations, cfg):
     if len(num_layers) <= 0:
         num_layers.insert(0, 1)
     else:
@@ -55,15 +55,15 @@ def add_new_node(rng, num_layers, trained_params, prev_activations):
         index = jnp.where(jnp.array(num_layers) == random_element)[0][0]
         num_layers[index] = random_element + 1
 
-    return copy_layers_over(rng, num_layers, trained_params, prev_activations)
+    return copy_layers_over(rng, num_layers, trained_params, prev_activations,cfg)
 
 
-def remove_layers_over(rng, num_layers, trained_params, prev_activations, num_output=3):
+def remove_layers_over(rng, num_layers, trained_params, prev_activations, num_output, num_inputs, cfg):
     layers, activations = create_layers(rng, num_layers, num_output, prev_activations)
     model = GenomeClassifier(layers=layers, activations=activations)
 
     rng, inp_rng, init_rng = jax.random.split(rng, 3)
-    inp = jax.random.normal(inp_rng, (4,))
+    inp = jax.random.normal(inp_rng, (num_inputs,))
     params = model.init(init_rng, inp)
 
     for layer, value in params['params'].items():
@@ -85,9 +85,9 @@ def remove_layers_over(rng, num_layers, trained_params, prev_activations, num_ou
     return model, params
 
 
-def remove_node(rng, num_layers, trained_params, prev_activations):
+def remove_node(rng, num_layers, trained_params, prev_activations, cfg):
     if len(num_layers) == 1:
-        return copy_layers_over(rng, num_layers, trained_params, prev_activations)
+        return copy_layers_over(rng, num_layers, trained_params, prev_activations, cfg)
     selected_node = None
     for i in range(1, len(num_layers)-1):
         if num_layers[i] > num_layers[i+1]:
@@ -96,16 +96,16 @@ def remove_node(rng, num_layers, trained_params, prev_activations):
     if selected_node is not None:
         num_layers[selected_node] -= 1
     else:
-        return copy_layers_over(rng, num_layers, trained_params, prev_activations)
+        return copy_layers_over(rng, num_layers, trained_params, prev_activations, cfg)
     
-    return remove_layers_over(rng, num_layers, trained_params, prev_activations)
+    return remove_layers_over(rng, num_layers, trained_params, prev_activations, cfg)
 
 
-def remove_layer(rng, num_layers, trained_params, prev_activations):
+def remove_layer(rng, num_layers, trained_params, prev_activations, cfg):
 
     if len(num_layers) == 1:
-        return copy_layers_over(rng, num_layers, trained_params, prev_activations)
+        return copy_layers_over(rng, num_layers, trained_params, prev_activations, cfg)
     rng, inp_rng = jax.random.split(rng, 2)
     random_layer = jax.random.choice(inp_rng, jnp.asarray(num_layers[:-1])).item()
     num_layers.remove(random_layer)
-    return copy_layers_over(rng, num_layers, trained_params, prev_activations)
+    return copy_layers_over(rng, num_layers, trained_params, prev_activations, cfg)

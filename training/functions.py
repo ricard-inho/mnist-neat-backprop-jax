@@ -19,8 +19,15 @@ from jax.scipy.special import logsumexp
 
 from tqdm import tqdm
 
-def calculate_loss_acc(state, params, batch):
+from functools import partial
+
+def calculate_loss_acc(state, params, batch, num_output):
     data_input, labels = batch
+
+    # if cfg.dataset.dataset_type == 'mnist':
+    #     labels = jax.nn.one_hot(labels, cfg.network.num_output)
+
+
     # Obtain the logits and predictions of the model for the input data
 
     logits = state.apply_fn(params, data_input)
@@ -30,35 +37,38 @@ def calculate_loss_acc(state, params, batch):
     probs = jax.nn.softmax(logits)
     max_index = jnp.argmax(probs, axis=-1)
     
-    pred_labels = jax.nn.one_hot(max_index, 3) 
+    
+    pred_labels = jax.nn.one_hot(max_index, num_output) 
     # Calculate the loss and accuracy
     # (pred_labels == labels).mean()
+
     acc = jnp.all(pred_labels == labels, axis=-1).mean()
 
     return loss, acc
 
 
-@jax.jit  # Jit the function for efficiency
-def train_step(state, batch):
+# @jax.jit  # Jit the function for efficiency
+@partial(jax.jit, static_argnums=(2,))
+def train_step(state, batch, num_output):
     # Gradient function
     grad_fn = jax.value_and_grad(calculate_loss_acc,  # Function to calculate the loss
                                  argnums=1,  # Parameters are second argument of the function
                                  has_aux=True  # Function has additional outputs, here accuracy
                                 )
     # Determine gradients for current model, parameters and batch
-    (loss, acc), grads = grad_fn(state, state.params, batch)
+    (loss, acc), grads = grad_fn(state, state.params, batch, num_output)
     # Perform parameter update with gradients and optimizer
     state = state.apply_gradients(grads=grads)
     # Return state and any other value we might want
     return state, loss, acc
 
 
-def train_model(state, train_data_loader, test_data_loader, writer, num_epochs, generation):
+def train_model(state, train_data_loader, test_data_loader, writer, num_epochs, generation, num_output):
     for epoch in tqdm(range(num_epochs)):
         batch_loss = []
         batch_acc = []
         for batch in train_data_loader:
-            state, loss, acc = train_step(state, batch)
+            state, loss, acc = train_step(state, batch, num_output)
             batch_loss.append(loss)
             batch_acc.append(acc)
 
@@ -68,22 +78,23 @@ def train_model(state, train_data_loader, test_data_loader, writer, num_epochs, 
             tf.summary.scalar(f'generation_{generation}/train_accuracy', np.mean(batch_acc), step=epoch)
         writer.flush()
         
-        eval_model(state, test_data_loader, epoch, writer, generation)
+        eval_model(state, test_data_loader, epoch, writer, generation, num_output)
 
     return state
 
 
-@jax.jit  # Jit the function for efficiency
-def eval_step(state, batch):
+# @jax.jit  # Jit the function for efficiency
+@partial(jax.jit, static_argnums=(2,))
+def eval_step(state, batch, num_output):
     # Determine the accuracy
-    _, acc = calculate_loss_acc(state, state.params, batch)
+    _, acc = calculate_loss_acc(state, state.params, batch, num_output)
     return acc
 
-def eval_model(state, data_loader, epoch, writer, generation):
+def eval_model(state, data_loader, epoch, writer, generation, num_output):
     
     all_accs, batch_sizes = [], []
     for batch in data_loader:
-        batch_acc = eval_step(state, batch)
+        batch_acc = eval_step(state, batch, num_output)
         all_accs.append(batch_acc)
         batch_sizes.append(batch[0].shape[0])
     # Weighted average since some batches might be smaller

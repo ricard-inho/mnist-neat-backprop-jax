@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 
 import jax
 import jax.numpy as jnp
-import numpy.random as npr
 
 
 
@@ -22,12 +21,9 @@ from models.model import GenomeClassifier
 
 from neat.functions import add_new_node, add_new_layer, remove_node, remove_layer, copy_layers_over
 
-from torchvision.datasets import MNIST
-from datasets.mnist_dataset import FlattenAndCast, NumpyLoader
-
 from datasets.utils import numpy_collate
-from datasets.iris_dataset import IrisDataset
-
+from datasets.iris_dataset import IrisDataset, DigitsDataset
+from datasets.mnist_dataset import mnist_transform, mnist_collate_fn
 
 from training.functions import train_model, eval_model
 import numpy as np
@@ -39,17 +35,21 @@ from sklearn.model_selection import train_test_split
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
+from torchvision.datasets import MNIST
 
 
 
-
-@hydra.main(version_base=None, config_path="configs", config_name="mnist_config")
+# @hydra.main(version_base=None, config_path="configs", config_name="mnist_config")
+@hydra.main(version_base=None, config_path="configs", config_name="iris_config")
 def main(cfg):
 
     rng = jax.random.PRNGKey(cfg.jax.PRNGKey)
 
-    num_layers = []
-    num_output = 3
+    num_layers = list(cfg.network.num_layers)
+    num_inputs = cfg.network.num_inputs
+    num_output = cfg.network.num_output
+    batch_size = cfg.training.batch_size
+    learning_rate = cfg.training.lr
 
     # Model
     layers, activations = create_layers(rng, num_layers, num_output, prev_activations=None)
@@ -57,12 +57,12 @@ def main(cfg):
 
 
     rng, inp_rng, init_rng = jax.random.split(rng, 3)
-    inp = jax.random.normal(inp_rng, (4,))
+    inp = jax.random.normal(inp_rng, (num_inputs,))
 
     params = model.init(init_rng, inp)
 
 
-    optimizer = optax.sgd(learning_rate=0.1)
+    optimizer = optax.sgd(learning_rate=learning_rate)
 
     for generation in range(cfg.training.generations):
 
@@ -72,20 +72,39 @@ def main(cfg):
         writer = tf.summary.create_file_writer(cfg.logs.log_dir)
 
         #Dataset 
-        iris_dataset = datasets.load_iris()
-        X = iris_dataset.data
-        y = iris_dataset.target
-        X = (X - X.mean()) / np.std(X)
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-        train_dataset = IrisDataset(X_train, y_train)
-        test_dataset = IrisDataset(X_test, y_test)
+        if cfg.dataset.dataset_type == "digits":
+            print("Loading Digits Dataset")
+            sklearn_dataset = datasets.load_digits()
+            n_samples = len(sklearn_dataset.images)
+            data = sklearn_dataset.images.reshape((n_samples, -1))
+            X_train, X_test, y_train, y_test = train_test_split(data, sklearn_dataset.target, test_size=0.3, shuffle=False)
+            train_dataset = DigitsDataset(X_train, y_train)
+            test_dataset = DigitsDataset(X_test, y_test)
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=numpy_collate)
+            test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=numpy_collate)
+            print("Done.")
 
+        if cfg.dataset.dataset_type == "iris":
+            print("Loading Iris Dataset")
+            iris_dataset = datasets.load_iris()
+            X = iris_dataset.data
+            y = iris_dataset.target
+            X = (X - X.mean()) / np.std(X)
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+            train_dataset = IrisDataset(X_train, y_train)
+            test_dataset = IrisDataset(X_test, y_test)
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=numpy_collate)
+            test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=numpy_collate)
+            print("Done.")
 
-        batch_size = 32
+        if cfg.dataset.dataset_type == "mnist":
+            print("Loading MNIST Dataset")
+            train = MNIST(root='train', train=True, transform=mnist_transform, download=True)
+            test = MNIST(root='test', train=False, transform=mnist_transform, download=True)
+            train_loader = DataLoader(train, batch_size=batch_size, shuffle=True, collate_fn=mnist_collate_fn)
+            test_loader = DataLoader(test, batch_size=batch_size, shuffle=True, collate_fn=mnist_collate_fn)
+            print("Done.")
 
-        #DataLoader
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=numpy_collate)
-        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=numpy_collate)
                             
         trained_model_state = train_model(
                                 state=model_state, 
@@ -93,10 +112,11 @@ def main(cfg):
                                 test_data_loader=test_loader, 
                                 num_epochs=cfg.training.num_epochs, 
                                 writer=writer,
-                                generation=generation
+                                generation=generation,
+                                num_output=num_output
                             )
         
-        eval_model(trained_model_state, test_loader, epoch=cfg.training.num_epochs, writer=writer, generation=generation)
+        eval_model(trained_model_state, test_loader, epoch=cfg.training.num_epochs, writer=writer, generation=generation, num_output=num_output)
 
 
         checkpoints.save_checkpoint(ckpt_dir='/Users/ricardmarsalcastan/Documents/Projects/neat-backprop-jax/checkpoints',  # Folder to save checkpoint in
@@ -108,7 +128,7 @@ def main(cfg):
         
 
         # Drawing graph
-        draw_graph(trained_model_state)
+        draw_graph(trained_model_state, cfg)
         plt.savefig(f"graph_gen{generation}.png")
         plt.close()
 
@@ -143,13 +163,13 @@ def main(cfg):
         #     modified = True
 
         print("Adding new node")
-        model, trained_params = add_new_node(rng, num_layers, trained_params, activations)
+        model, trained_params = add_new_node(rng, num_layers, trained_params, activations, cfg)
         modified = True
 
         if modified:
             params = trained_params
         else:
-            model, params = copy_layers_over(rng, num_layers, trained_params, activations)
+            model, params = copy_layers_over(rng, num_layers, trained_params, activations, cfg)
 
 
          
