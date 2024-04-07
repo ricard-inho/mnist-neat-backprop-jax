@@ -4,6 +4,19 @@ import jax
 
 
 def create_layers(rng, num_hidden, num_output, prev_activations):
+    """
+    Create layers and corresponding activations for the model.
+
+    Parameters:
+    rng (jax.random.PRNGKey): Random number generator key.
+    num_hidden (list): List of integers representing the number of hidden units in each layer.
+    num_output (int): Number of output units in the final layer.
+    prev_activations (list or None): List of activation functions used in previous layers, or None.
+
+    Returns:
+    tuple: Tuple containing lists of layers and activations.
+    """
+    
     layers = []
     activations = []
     for hidden in num_hidden:

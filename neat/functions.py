@@ -6,6 +6,19 @@ import jax.numpy as jnp
 
 
 def copy_layers_over(rng, num_layers, trained_params, prev_activations, cfg):
+    """
+    Copy trained parameters over to a new model with potentially different layer structure.
+
+    Parameters:
+    rng (jax.random.PRNGKey): Random number generator key.
+    num_layers (int): Number of layers in the new model.
+    trained_params (dict): Trained parameters from a previously trained model.
+    prev_activations (list or None): List of activation functions used in previous layers, or None.
+    cfg: Configuration object containing network parameters.
+
+    Returns:
+    tuple: Tuple containing new model and its initialized parameters.
+    """
 
     layers, activations = create_layers(rng, num_layers, cfg.network.num_output, prev_activations)
     model = GenomeClassifier(layers=layers, activations=activations)
@@ -51,6 +64,19 @@ def add_new_layer(rng, num_layers, trained_params, cfg):
 
 
 def add_new_node(rng, num_layers, trained_params, prev_activations, cfg):
+    """
+    Add a new node to a randomly selected layer in the model.
+
+    Parameters:
+    rng (jax.random.PRNGKey): Random number generator key.
+    num_layers (list): List containing the number of layers in the model.
+    trained_params (dict): Trained parameters from a previously trained model.
+    prev_activations (list or None): List of activation functions used in previous layers, or None.
+    cfg: Configuration object containing network parameters.
+
+    Returns:
+    tuple: Tuple containing new model and its initialized parameters with an additional node.
+    """
     if len(num_layers) <= 0:
         num_layers.insert(0, 1)
     else:
