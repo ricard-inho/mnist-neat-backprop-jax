@@ -169,3 +169,4 @@ mnist_data/*
 test/*
 train/*
 files/*
+.DS_Store

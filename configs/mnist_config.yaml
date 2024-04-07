@@ -1,6 +1,8 @@
 neat:
   add_node: 0.99
-  add_edge: 0.7
+  add_layer: 0.09
+  remove_node: 0.2
+  remove_layer: 0.2
 
 logs:
   log_dir: './logs'
@@ -9,8 +11,8 @@ jax:
   PRNGKey: 30
 
 training:
-  num_epochs: 100
-  generations: 8
+  num_epochs: 300
+  generations: 20
   visualize_epochs: False
   batch_size: 32
   lr: 0.1
@@ -22,4 +24,7 @@ network:
 
 dataset:
   dataset_type: "mnist"
+
+utils:
+  draw_graph: False
   

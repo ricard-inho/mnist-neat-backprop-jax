@@ -4,12 +4,10 @@ import torch.utils.data as data
 import tensorflow as tf
 
 
-## Imports for plotting
 import matplotlib.pyplot as plt
 
 
 import jax
-import jax.numpy as jnp
 
 
 
@@ -34,13 +32,13 @@ from sklearn import datasets
 from sklearn.model_selection import train_test_split
 
 import torch
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
 from torchvision.datasets import MNIST
 
 
 
-# @hydra.main(version_base=None, config_path="configs", config_name="mnist_config")
-@hydra.main(version_base=None, config_path="configs", config_name="iris_config")
+@hydra.main(version_base=None, config_path="configs", config_name="mnist_config")
+# @hydra.main(version_base=None, config_path="configs", config_name="iris_config")
 def main(cfg):
 
     rng = jax.random.PRNGKey(cfg.jax.PRNGKey)
@@ -55,7 +53,6 @@ def main(cfg):
     layers, activations = create_layers(rng, num_layers, num_output, prev_activations=None)
     model = GenomeClassifier(layers=layers, activations=activations)
 
-
     rng, inp_rng, init_rng = jax.random.split(rng, 3)
     inp = jax.random.normal(inp_rng, (num_inputs,))
 
@@ -64,47 +61,46 @@ def main(cfg):
 
     optimizer = optax.sgd(learning_rate=learning_rate)
 
+    # Logs
+    writer = tf.summary.create_file_writer(cfg.logs.log_dir)
+
+    #Dataset 
+    if cfg.dataset.dataset_type == "digits":
+        print("Loading Digits Dataset")
+        sklearn_dataset = datasets.load_digits()
+        n_samples = len(sklearn_dataset.images)
+        data = sklearn_dataset.images.reshape((n_samples, -1))
+        X_train, X_test, y_train, y_test = train_test_split(data, sklearn_dataset.target, test_size=0.3, shuffle=False)
+        train_dataset = DigitsDataset(X_train, y_train)
+        test_dataset = DigitsDataset(X_test, y_test)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=numpy_collate)
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=numpy_collate)
+        print("Done.")
+
+    if cfg.dataset.dataset_type == "iris":
+        print("Loading Iris Dataset")
+        iris_dataset = datasets.load_iris()
+        X = iris_dataset.data
+        y = iris_dataset.target
+        X = (X - X.mean()) / np.std(X)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+        train_dataset = IrisDataset(X_train, y_train)
+        test_dataset = IrisDataset(X_test, y_test)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=numpy_collate)
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=numpy_collate)
+        print("Done.")
+
+    if cfg.dataset.dataset_type == "mnist":
+        print("Loading MNIST Dataset")
+        train = MNIST(root='train', train=True, transform=mnist_transform, download=True)
+        test = MNIST(root='test', train=False, transform=mnist_transform, download=True)
+        train_loader = DataLoader(train, batch_size=batch_size, shuffle=True, collate_fn=mnist_collate_fn)
+        test_loader = DataLoader(test, batch_size=batch_size, shuffle=True, collate_fn=mnist_collate_fn)
+        print("Done.")
+
     for generation in range(cfg.training.generations):
 
         model_state = train_state.TrainState.create(apply_fn=model.apply, params=params, tx=optimizer)
-
-        # Logs
-        writer = tf.summary.create_file_writer(cfg.logs.log_dir)
-
-        #Dataset 
-        if cfg.dataset.dataset_type == "digits":
-            print("Loading Digits Dataset")
-            sklearn_dataset = datasets.load_digits()
-            n_samples = len(sklearn_dataset.images)
-            data = sklearn_dataset.images.reshape((n_samples, -1))
-            X_train, X_test, y_train, y_test = train_test_split(data, sklearn_dataset.target, test_size=0.3, shuffle=False)
-            train_dataset = DigitsDataset(X_train, y_train)
-            test_dataset = DigitsDataset(X_test, y_test)
-            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=numpy_collate)
-            test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=numpy_collate)
-            print("Done.")
-
-        if cfg.dataset.dataset_type == "iris":
-            print("Loading Iris Dataset")
-            iris_dataset = datasets.load_iris()
-            X = iris_dataset.data
-            y = iris_dataset.target
-            X = (X - X.mean()) / np.std(X)
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-            train_dataset = IrisDataset(X_train, y_train)
-            test_dataset = IrisDataset(X_test, y_test)
-            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=numpy_collate)
-            test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=numpy_collate)
-            print("Done.")
-
-        if cfg.dataset.dataset_type == "mnist":
-            print("Loading MNIST Dataset")
-            train = MNIST(root='train', train=True, transform=mnist_transform, download=True)
-            test = MNIST(root='test', train=False, transform=mnist_transform, download=True)
-            train_loader = DataLoader(train, batch_size=batch_size, shuffle=True, collate_fn=mnist_collate_fn)
-            test_loader = DataLoader(test, batch_size=batch_size, shuffle=True, collate_fn=mnist_collate_fn)
-            print("Done.")
-
                             
         trained_model_state = train_model(
                                 state=model_state, 
@@ -119,7 +115,7 @@ def main(cfg):
         eval_model(trained_model_state, test_loader, epoch=cfg.training.num_epochs, writer=writer, generation=generation, num_output=num_output)
 
 
-        checkpoints.save_checkpoint(ckpt_dir='/Users/ricardmarsalcastan/Documents/Projects/neat-backprop-jax/checkpoints',  # Folder to save checkpoint in
+        checkpoints.save_checkpoint(ckpt_dir='/tmp/checkpoints',  # Folder to save checkpoint in
                                 target=trained_model_state,  # What to save. To only save parameters, use model_state.params
                                 step=100,  # Training step or other metric to save best model on
                                 prefix=f'model_generation_{generation}_',  # Checkpoint file name prefix
@@ -128,9 +124,10 @@ def main(cfg):
         
 
         # Drawing graph
-        draw_graph(trained_model_state, cfg)
-        plt.savefig(f"graph_gen{generation}.png")
-        plt.close()
+        if cfg.utils.draw_graph:
+            draw_graph(trained_model_state, cfg)
+            plt.savefig(f"graph_gen{generation}.png")
+            plt.close()
 
 
         # Evolution
@@ -138,33 +135,30 @@ def main(cfg):
         trained_params = trained_model_state.params['params']
         modified = False
 
-        # # Add new layer
-        # if jax.random.uniform(add_layer_rng, shape=(1,)).item() < 0.2:
-        #     print("Adding new layer")
-        #     model, trained_params = add_new_layer(rng, num_layers, trained_params)
-        #     modified = True
+        # Add new layer
+        if jax.random.uniform(add_layer_rng, shape=(1,)).item() < cfg.neat.add_layer:
+            print("Adding new layer")
+            model, trained_params = add_new_layer(rng, num_layers, trained_params, cfg)
+            modified = True
 
-        # # Add new node
-        # if jax.random.uniform(add_node_rng, shape=(1,)).item() < 0.9:
-        #     print("Adding new node")
-        #     model, trained_params = add_new_node(rng, num_layers, trained_params, activations)
-        #     modified = True
+        # Add new node
+        if jax.random.uniform(add_node_rng, shape=(1,)).item() < cfg.neat.add_node:
+            print("Adding new node")
+            model, trained_params = add_new_node(rng, num_layers, trained_params, activations, cfg)
+            modified = True
 
         # # Remove node
-        # if jax.random.uniform(rmv_layer_rng, shape=(1,)).item() < 0.2: 
-        #     print("Removing node")
-        #     model, trained_params = remove_node(rng, num_layers, trained_params, activations)
-        #     modified = True
+        if jax.random.uniform(rmv_layer_rng, shape=(1,)).item() < cfg.neat.remove_node: 
+            print("Removing node")
+            model, trained_params = remove_node(rng, num_layers, trained_params, activations, cfg)
+            modified = True
 
         # #Remove layer
-        # if jax.random.uniform(rmv_node_rng, shape=(1,)).item() < 0.2:   
-        #     print("Removing layer") 
-        #     model, trained_params = remove_layer(rng, num_layers, trained_params, activations)
-        #     modified = True
+        if jax.random.uniform(rmv_node_rng, shape=(1,)).item() < cfg.neat.remove_layer:   
+            print("Removing layer") 
+            model, trained_params = remove_layer(rng, num_layers, trained_params, activations, cfg)
+            modified = True
 
-        print("Adding new node")
-        model, trained_params = add_new_node(rng, num_layers, trained_params, activations, cfg)
-        modified = True
 
         if modified:
             params = trained_params

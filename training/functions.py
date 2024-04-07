@@ -22,13 +22,20 @@ from tqdm import tqdm
 from functools import partial
 
 def calculate_loss_acc(state, params, batch, num_output):
+    """
+    Calculate loss and accuracy for a batch of data.
+
+    Parameters:
+    state: Model state.
+    params: Model parameters.
+    batch: Tuple containing input data and labels.
+    num_output (int): Number of output classes.
+
+    Returns:
+    tuple: Tuple containing loss and accuracy.
+    """
+
     data_input, labels = batch
-
-    # if cfg.dataset.dataset_type == 'mnist':
-    #     labels = jax.nn.one_hot(labels, cfg.network.num_output)
-
-
-    # Obtain the logits and predictions of the model for the input data
 
     logits = state.apply_fn(params, data_input)
     loss = optax.softmax_cross_entropy(logits=logits, labels=labels).mean()
@@ -39,8 +46,6 @@ def calculate_loss_acc(state, params, batch, num_output):
     
     
     pred_labels = jax.nn.one_hot(max_index, num_output) 
-    # Calculate the loss and accuracy
-    # (pred_labels == labels).mean()
 
     acc = jnp.all(pred_labels == labels, axis=-1).mean()
 
@@ -50,6 +55,18 @@ def calculate_loss_acc(state, params, batch, num_output):
 # @jax.jit  # Jit the function for efficiency
 @partial(jax.jit, static_argnums=(2,))
 def train_step(state, batch, num_output):
+    """
+    Perform a single training step.
+
+    Parameters:
+    state: Model state.
+    batch: Tuple containing input data and labels.
+    num_output (int): Number of output classes.
+
+    Returns:
+    tuple: Tuple containing updated model state, loss, and accuracy.
+    """
+
     # Gradient function
     grad_fn = jax.value_and_grad(calculate_loss_acc,  # Function to calculate the loss
                                  argnums=1,  # Parameters are second argument of the function
@@ -64,6 +81,22 @@ def train_step(state, batch, num_output):
 
 
 def train_model(state, train_data_loader, test_data_loader, writer, num_epochs, generation, num_output):
+    """
+    Train the model for a specified number of epochs.
+
+    Parameters:
+    state: Initial model state.
+    train_data_loader: Data loader for training dataset.
+    test_data_loader: Data loader for testing dataset.
+    writer: TensorBoard writer for logging.
+    num_epochs (int): Number of epochs to train.
+    generation (int): Current generation number.
+    num_output (int): Number of output classes.
+
+    Returns:
+    state: Trained model state.
+    """
+
     for epoch in tqdm(range(num_epochs)):
         batch_loss = []
         batch_acc = []
@@ -86,11 +119,34 @@ def train_model(state, train_data_loader, test_data_loader, writer, num_epochs, 
 # @jax.jit  # Jit the function for efficiency
 @partial(jax.jit, static_argnums=(2,))
 def eval_step(state, batch, num_output):
+    """
+    Evaluate the model on a single batch.
+
+    Parameters:
+    state: Model state.
+    batch: Tuple containing input data and labels.
+    num_output (int): Number of output classes.
+
+    Returns:
+    float: Accuracy.
+    """
+
     # Determine the accuracy
     _, acc = calculate_loss_acc(state, state.params, batch, num_output)
     return acc
 
 def eval_model(state, data_loader, epoch, writer, generation, num_output):
+    """
+    Evaluate the model on the entire dataset.
+
+    Parameters:
+    state: Model state.
+    data_loader: Data loader for evaluation dataset.
+    epoch (int): Current epoch number.
+    writer: TensorBoard writer for logging.
+    generation (int): Current generation number.
+    num_output (int): Number of output classes.
+    """
     
     all_accs, batch_sizes = [], []
     for batch in data_loader:

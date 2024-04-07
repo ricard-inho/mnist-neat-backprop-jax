@@ -19,11 +19,16 @@ def copy_layers_over(rng, num_layers, trained_params, prev_activations, cfg):
             if 'kernel' in value:
                 copy_params = jax.device_get(params['params'][layer]['kernel']).copy().T
                 copy_train_params = jax.device_get(value['kernel']).copy().T
-                if len(copy_params) > len(copy_train_params):
-                    copy_params[:len(copy_train_params), :len(value['kernel'])] = copy_train_params
+                
+                # print(copy_params)
+                # print(copy_train_params)
+                # breakpoint()
+
+                if len(copy_params) >= len(copy_train_params):
+                    copy_params[:len(copy_train_params), :len(value['kernel'])] = copy_train_params[:,:len(copy_params[0])]
                     params['params'][layer]['kernel'] = jax.numpy.array(copy_params.T)
                 else:
-                    copy_params[:len(copy_train_params), :len(value['kernel'])] = copy_train_params[:len(copy_params)]
+                    copy_params = copy_train_params[:len(copy_params), :len(copy_params[0])]
                     params['params'][layer]['kernel'] = jax.numpy.array(copy_params.T)
 
 
@@ -58,12 +63,12 @@ def add_new_node(rng, num_layers, trained_params, prev_activations, cfg):
     return copy_layers_over(rng, num_layers, trained_params, prev_activations,cfg)
 
 
-def remove_layers_over(rng, num_layers, trained_params, prev_activations, num_output, num_inputs, cfg):
-    layers, activations = create_layers(rng, num_layers, num_output, prev_activations)
+def remove_node_over(rng, num_layers, trained_params, prev_activations, cfg):
+    layers, activations = create_layers(rng, num_layers, cfg.network.num_output, prev_activations)
     model = GenomeClassifier(layers=layers, activations=activations)
 
     rng, inp_rng, init_rng = jax.random.split(rng, 3)
-    inp = jax.random.normal(inp_rng, (num_inputs,))
+    inp = jax.random.normal(inp_rng, (cfg.network.num_inputs,))
     params = model.init(init_rng, inp)
 
     for layer, value in params['params'].items():
@@ -71,16 +76,16 @@ def remove_layers_over(rng, num_layers, trained_params, prev_activations, num_ou
             if 'kernel' in value:
                 copy_params = jax.device_get(params['params'][layer]['kernel']).copy().T
                 copy_train_params = jax.device_get(trained_params[layer]['kernel']).copy().T
-                copy_params = copy_train_params[:len(copy_params), :len(copy_train_params)]
-                params['params'][layer]['kernel'] = jax.numpy.array(copy_params.T)
 
+                copy_params = copy_train_params[:len(copy_params), :len(copy_params[0])]
+                params['params'][layer]['kernel'] = jax.numpy.array(copy_params.T)
 
             if 'bias' in value:
                 copy_arr = jax.device_get(value['bias']).copy()
                 for num_node_i in range(len(value['bias'].T)):
                     copy_arr[num_node_i] = jax.device_get(trained_params[layer]['bias']).T[num_node_i]
                 
-                params['params'][layer]['bias'] = jax.numpy.array(copy_arr)
+                params['params'][layer]['bias'] = jax.numpy.array(copy_arr)            
 
     return model, params
 
@@ -89,7 +94,7 @@ def remove_node(rng, num_layers, trained_params, prev_activations, cfg):
     if len(num_layers) == 1:
         return copy_layers_over(rng, num_layers, trained_params, prev_activations, cfg)
     selected_node = None
-    for i in range(1, len(num_layers)-1):
+    for i in range(0, len(num_layers)-1):
         if num_layers[i] > num_layers[i+1]:
             selected_node = i
             break
@@ -98,7 +103,8 @@ def remove_node(rng, num_layers, trained_params, prev_activations, cfg):
     else:
         return copy_layers_over(rng, num_layers, trained_params, prev_activations, cfg)
     
-    return remove_layers_over(rng, num_layers, trained_params, prev_activations, cfg)
+    print(num_layers)
+    return remove_node_over(rng, num_layers, trained_params, prev_activations, cfg)
 
 
 def remove_layer(rng, num_layers, trained_params, prev_activations, cfg):
@@ -108,4 +114,5 @@ def remove_layer(rng, num_layers, trained_params, prev_activations, cfg):
     rng, inp_rng = jax.random.split(rng, 2)
     random_layer = jax.random.choice(inp_rng, jnp.asarray(num_layers[:-1])).item()
     num_layers.remove(random_layer)
+    print(num_layers)
     return copy_layers_over(rng, num_layers, trained_params, prev_activations, cfg)

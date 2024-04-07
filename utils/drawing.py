@@ -1,13 +1,21 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 
+import numpy as np
+
 
 def draw_graph(trained_model_state, cfg):
+    """
+    Draw a graph representing the trained model architecture and weights.
+
+    Parameters:
+    trained_model_state: Trained model state.
+    cfg: Configuration object containing network parameters.
+    """
+
     G = nx.DiGraph()
-
-
     num_elements = cfg.network.num_inputs
-    start_nodes = [f'input_node_{i+1}' for i in range(min(num_elements, 10))]
+    start_nodes = [f'input_node_{i+1}' for i in range(min(num_elements, 6))]
 
     for i, node in enumerate(start_nodes):
         y_pos = i - (len(start_nodes) - 1) / 2 
@@ -38,13 +46,14 @@ def draw_graph(trained_model_state, cfg):
 
         prev_layer_nodes = [f"{layer}_node_{node}" for node in range(num_nodes)]
 
-        if len(value['kernel'][0]) > 6:
+
+        if len(value['kernel']) > 6:
             # If there are more than 5 nodes in the layer, add three dots in the middle
             num_nodes = 3
-            middle_y = (num_prev_nodes - 1) / 2 - 1.5
-            G.add_node(-1, pos=(layer_distance, middle_y - 0.12), shape='dot')
-            G.add_node(-2, pos=(layer_distance, middle_y), shape='dot')
-            G.add_node(-3, pos=(layer_distance, middle_y + 0.12), shape='dot')
+            middle_y = (num_prev_nodes - 1) / 2 - 2.5
+            G.add_node(np.random.randint(10000), pos=(layer_distance - 0.5, middle_y - 0.12), shape='dot')
+            G.add_node(np.random.randint(10000), pos=(layer_distance - 0.5, middle_y), shape='dot')
+            G.add_node(np.random.randint(10000), pos=(layer_distance - 0.5, middle_y + 0.12), shape='dot')
 
         layer_distance += 0.5
 
@@ -67,33 +76,21 @@ def draw_graph(trained_model_state, cfg):
             height_text = 3
 
         if i < len(trained_model_state.params['params'].items()) - 1:
-            plt.text(distance - 0.07, height_text, f"Hidden Layer {count}", fontsize=12, color='black')
-            plt.text(distance - 0.06, height_text - 0.2, f"num nodes {len(value['kernel'].T)}", fontsize=12, color='black')
+            plt.text(distance - 0.08, height_text, f"HL {count}", fontsize=12, color='black')
+            plt.text(distance - 0.08, height_text - 0.2, f"num nodes {len(value['kernel'].T)}", fontsize=12, color='black')
             count +=1
+            distance += 0.5
         else:
-            plt.text(2*distance - 0.07, height_text, f"Output Layer", fontsize=12, color='black')
+            plt.text(distance - 0.07, height_text, f"Output Layer", fontsize=12, color='black')
     
     plt.text(-0.05, height_text, f"Input Layer", fontsize=12, color='black')
-
-
-        # if i == 0:
-        #     print(f"i {height_text}")
-        #     plt.text(-0.05, height_text, f"Input Layer", fontsize=12, color='black')
-        # elif i == len(trained_model_state.params['params'].items()):
-        #     plt.text(2*distance - 0.07, height_text, f"Output Layer", fontsize=12, color='black')
-        # else:
-        #     print(f"h {height_text}")
-        #     plt.text(distance - 0.07, height_text, f"Hidden Layer {count}", fontsize=12, color='black')
-        #     count +=1
-
-    # plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.05)
 
 
     # Calculate edge widths based on absolute value of weights
     edge_widths = [abs(d['weight']) for u, v, d in G.edges(data=True)]
     edge_widths_normalized = [w / max(edge_widths) * 3 for w in edge_widths]
     
-    nx.draw(G, pos, with_labels=False, node_size=1500, node_color='lightblue', font_size=10, font_weight='bold', nodelist=[n for n, d in G.nodes(data=True) if not 'shape' in d])
+    nx.draw(G, pos, with_labels=False, node_size=1500, node_color='#C70039', font_size=10, font_weight='bold', nodelist=[n for n, d in G.nodes(data=True) if not 'shape' in d])
     nx.draw(G, pos, with_labels=False, node_size=30, node_color='grey', nodelist=[n for n, d in G.nodes(data=True) if 'shape' in d and d['shape'] == 'dot'])
 
     nx.draw_networkx_edges(G, pos, width=edge_widths_normalized)
